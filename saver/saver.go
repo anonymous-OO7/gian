@@ -133,3 +133,74 @@ func GetSavedJobs(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonResponse)
 }
+
+//remove saved job
+
+func RemoveSavedJob(w http.ResponseWriter, r *http.Request) {
+	userID := r.Header.Get("user_id")
+	jobUUID := r.FormValue("job_id")
+
+	// Check if necessary values are present
+	if userID == "" || jobUUID == "" {
+		utils.HandleError(w, http.StatusBadRequest, "Missing user_id or job_id", nil)
+		return
+	}
+
+	var saved models.Saved
+
+	// Try to find the existing user in the Saved table
+	err := db.DB.Where("user_id = ?", userID).First(&saved).Error
+	if err == gorm.ErrRecordNotFound {
+		// User not found, cannot remove job
+		utils.HandleError(w, http.StatusNotFound, "No saved jobs found for the user", err)
+		return
+	} else if err != nil {
+		// Any other error
+		utils.HandleError(w, http.StatusInternalServerError, "Failed to find saved jobs", err)
+		return
+	}
+
+	// Decode the JobIDs from JSON
+	var jobIDs []string
+	if err := json.Unmarshal([]byte(saved.JobIDs), &jobIDs); err != nil {
+		utils.HandleError(w, http.StatusInternalServerError, "Failed to parse job IDs", err)
+		return
+	}
+
+	// Check if jobUUID exists in the saved jobs list
+	var updatedJobIDs []string
+	jobFound := false
+	for _, id := range jobIDs {
+		if id != jobUUID {
+			updatedJobIDs = append(updatedJobIDs, id)
+		} else {
+			jobFound = true
+		}
+	}
+
+	if !jobFound {
+		// Job not found in saved jobs
+		utils.HandleError(w, http.StatusNotFound, "Job not found in saved jobs", nil)
+		return
+	}
+
+	// Encode the updated job list back to JSON
+	jobIDsJSON, _ := json.Marshal(updatedJobIDs)
+	saved.JobIDs = string(jobIDsJSON)
+
+	// Save the updated list
+	if err := db.DB.Save(&saved).Error; err != nil {
+		utils.HandleError(w, http.StatusInternalServerError, "Failed to remove job", err)
+		return
+	}
+
+	responseBody := map[string]interface{}{
+		"message": "Job removed successfully",
+		"status":  true,
+	}
+
+	jsonResponse, _ := json.Marshal(responseBody)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResponse)
+}
