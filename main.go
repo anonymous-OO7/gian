@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"gian/cron"
 	"gian/db"
 	"gian/migrations"
 	"gian/router"
@@ -24,8 +25,10 @@ func main() {
 		log.Fatal("failed to migrate: ", err)
 		return
 	}
-fmt.Println("Hello gaurav")
-r := router.NewRouter()
+	fmt.Println("Hello gaurav")
+
+	cron.RunCron()
+	r := router.NewRouter()
 
 	port := os.Getenv("PORT")
 
@@ -34,6 +37,5 @@ r := router.NewRouter()
 	}
 
 	http.ListenAndServe(fmt.Sprintf(":%s", port), r)
-
 
 }

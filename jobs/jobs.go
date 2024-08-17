@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 func CreateJob(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +96,6 @@ func CreateJob(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetJobsList(w http.ResponseWriter, r *http.Request) {
-	// Extract role and email from headers
 
 	var jobsList []models.Jobs
 
@@ -115,5 +115,89 @@ func GetJobsList(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResponse)
+}
+
+func GetJobs(w http.ResponseWriter, r *http.Request) {
+	// Retrieve role, id (employee ID), and company code from the headers
+	owneruuid := r.Header.Get("uuid")
+
+	// Check if the necessary headers are present
+
+	var jobs []models.Jobs
+	var err error
+
+	// Fetch orders based on role
+
+	if owneruuid == "" {
+		utils.HandleError(w, http.StatusBadRequest, "Missing employee ID in headers", nil)
+		return
+	}
+
+	err = db.DB.Where("owner = ?", owneruuid).Find(&jobs).Error
+
+	// Handle errors during fetching
+	if err != nil {
+		utils.HandleError(w, http.StatusInternalServerError, "Error fetching jobs", err)
+		return
+	}
+
+	responseBody := map[string]interface{}{
+		"message": "success",
+		"orders":  jobs,
+	}
+
+	jsonResponse, _ := json.Marshal(responseBody)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonResponse)
+}
+
+func UpdateJobStatus(w http.ResponseWriter, r *http.Request) {
+
+	// Get the status and ID from the form data
+	status := r.FormValue("status")
+	id := r.FormValue("id")
+
+	if id == "" || status == "" {
+		responseBody := map[string]interface{}{
+			"message":   "Missing status or ID",
+			"status":    false,
+			"id":        id,
+			"newStatus": status,
+		}
+		jsonResponse, _ := json.Marshal(responseBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResponse)
+		return
+	}
+
+	// Find the existing job by ID
+	var job models.Jobs
+	if err := db.DB.First(&job, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			http.Error(w, "job not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Failed to fetch job", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Update the status
+	job.Status = status
+	if err := db.DB.Save(&job).Error; err != nil {
+		http.Error(w, "Failed to update job status", http.StatusInternalServerError)
+		return
+	}
+
+	responseBody := map[string]interface{}{
+		"message": "Status updated successfully",
+		"status":  true,
+	}
+
+	jsonResponse, _ := json.Marshal(responseBody)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 	w.Write(jsonResponse)
 }

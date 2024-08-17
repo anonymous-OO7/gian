@@ -52,5 +52,8 @@ func NewRouter() *chi.Mux {
 	r.Post("/apply", middleware.CorsMiddleware(apply.SaveApplication))
 	r.Get("/apply", middleware.CorsMiddleware(apply.GetApplications))
 
+	r.Post("/myjobs", middleware.CorsMiddleware(jobs.UpdateJobStatus))
+	r.Get("/myjobs", middleware.CorsMiddleware(jobs.GetJobs))
+
 	return r
 }
